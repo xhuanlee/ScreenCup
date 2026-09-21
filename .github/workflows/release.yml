@@ -20,12 +20,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # A single universal binary covers both Apple Silicon and Intel
+          # Macs; separate x86_64 runners are scarce on the free tier.
           - platform: macos-14
-            target: aarch64-apple-darwin
-          - platform: macos-13
-            target: x86_64-apple-darwin
+            target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
           - platform: windows-latest
             target: ""
+            rust_targets: ""
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +46,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust_targets }}
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
