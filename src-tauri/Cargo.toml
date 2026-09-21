@@ -1,6 +1,6 @@
 [package]
 name = "screencut"
-version = "0.0.2"
+version = "0.0.3"
 description = "Cross-platform screen recorder built with Rust + Tauri"
 authors = ["ScreenCut"]
 edition = "2021"
