@@ -59,14 +59,39 @@ jobs:
       # The vendored scap is a path dependency, so it ships with the repo and
       # needs no network access to fetch.
       #
-      # No code signing is configured: the bundles are ad-hoc signed and
-      # Gatekeeper asks the user to confirm on first launch, which is fine for
-      # a beta. To sign, set APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD /
-      # APPLE_SIGNING_IDENTITY (and TAURI_SIGNING_PRIVATE_KEY for the updater)
-      # as repository secrets and pass them here — passing them *empty*
-      # currently makes the bundler try to import an empty certificate and
-      # fails the build.
+      # macOS: an *ad-hoc* signature (`-`) is used on purpose. Tauri otherwise
+      # leaves the .app carrying only the linker's implicit signature, whose
+      # identifier (e.g. `screencut-0c69cad04cfc4d8c`) is random per build.
+      # macOS TCC keys every permission grant — screen recording, microphone —
+      # on the code-signing identity, so an unstable identifier makes the app
+      # re-prompt for the microphone on every launch and can leave the Screen
+      # Recording toggle in System Settings visibly on while the running
+      # process still has no permission. Signing with the bundle's own stable
+      # identifier (`com.screencut.app`) lets TCC remember the grants.
+      # Gatekeeper still asks once on first launch, which is fine for a beta.
+      # To ship a properly signed build, set APPLE_CERTIFICATE /
+      # APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY (and
+      # TAURI_SIGNING_PRIVATE_KEY for the updater) as repository secrets and
+      # pass them here.
+      #
+      # Two near-duplicate steps rather than one with a conditional env value:
+      # passing APPLE_SIGNING_IDENTITY *empty* on Windows makes the bundler
+      # try to import an empty certificate and fails the build.
       - uses: tauri-apps/tauri-action@v0
+        if: matrix.platform == 'macos-14'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: "-"
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "ScreenCut ${{ github.ref_name }}"
+          releaseBody: "See the assets below to download the latest build for your platform."
+          releaseDraft: false
+          prerelease: true
+          args: --target ${{ matrix.target }}
+
+      - uses: tauri-apps/tauri-action@v0
+        if: matrix.platform != 'macos-14'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -75,4 +100,3 @@ jobs:
           releaseBody: "See the assets below to download the latest build for your platform."
           releaseDraft: false
           prerelease: true
-          args: ${{ matrix.target != '' && format('--target {0}', matrix.target) || '' }}
