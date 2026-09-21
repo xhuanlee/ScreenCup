@@ -76,7 +76,7 @@ impl GraphicsCaptureApiHandler for Capturer {
         frame: &mut WCFrame,
         _: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
-        let elapsed = frame.timespan().Duration - self.start_time.0;
+        let elapsed = frame.timestamp().Duration - self.start_time.0;
         let display_time = self
             .start_time
             .1
@@ -215,10 +215,10 @@ pub fn create_capturer(
             WCMonitor::from_raw_hmonitor(display.raw_handle.0),
             show_cursor,
             draw_border,
-            color_format,
             SecondaryWindowSettings::Default,
             MinimumUpdateIntervalSettings::Default,
             DirtyRegionSettings::Default,
+            color_format,
             FlagStruct {
                 tx: tx.clone(),
                 crop: Some(get_crop_area(options)),

@@ -54,3 +54,23 @@ jobs:
       - name: Rust unit + integration tests
         working-directory: src-tauri
         run: cargo test --locked
+
+  # Compile-check the Windows build. The capture stack can only be verified on
+  # its target platform, and a full release build takes a while, so this is a
+  # cheap guard that runs on every push.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Compile-check the Windows capture stack
+        working-directory: src-tauri
+        run: cargo check --locked
