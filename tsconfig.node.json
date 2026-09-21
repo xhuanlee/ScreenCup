@@ -6,6 +6,7 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true,
+    "types": ["node"],
     // composite projects may not disable emit entirely; declarations only,
     // written somewhere harmless.
     "emitDeclarationOnly": true,
