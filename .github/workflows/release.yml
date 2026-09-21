@@ -56,16 +56,17 @@ jobs:
 
       # The vendored scap is a path dependency, so it ships with the repo and
       # needs no network access to fetch.
+      #
+      # No code signing is configured: the bundles are ad-hoc signed and
+      # Gatekeeper asks the user to confirm on first launch, which is fine for
+      # a beta. To sign, set APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD /
+      # APPLE_SIGNING_IDENTITY (and TAURI_SIGNING_PRIVATE_KEY for the updater)
+      # as repository secrets and pass them here — passing them *empty*
+      # currently makes the bundler try to import an empty certificate and
+      # fails the build.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Optional code signing — absent secrets produce an ad-hoc signed
-          # build, which is fine for a beta.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "ScreenCut ${{ github.ref_name }}"
