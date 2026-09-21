@@ -6,6 +6,15 @@ use windows::Win32::{
 };
 use windows_capture::{monitor::Monitor, window::Window};
 
+// HMONITOR/HWND are opaque, process-global OS handles rather than owned
+// pointers, so moving or sharing them between threads is safe. Downstream
+// apps commonly keep enumerated targets in shared state (e.g. Tauri's
+// State<AppState>), which requires Target to be Send + Sync.
+unsafe impl Send for Display {}
+unsafe impl Sync for Display {}
+unsafe impl Send for super::Window {}
+unsafe impl Sync for super::Window {}
+
 pub fn get_all_targets() -> Vec<Target> {
     let mut targets: Vec<Target> = Vec::new();
 
