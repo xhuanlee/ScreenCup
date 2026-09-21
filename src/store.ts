@@ -54,7 +54,6 @@ interface StoreState extends UiState {
   pickTarget: (id: number) => Promise<void>;
   pickMic: (name: string | null) => Promise<void>;
   startRegionPick: () => Promise<void>;
-  finishRegionPick: (rect: Rect | null) => Promise<void>;
   toggleSystemAudio: () => Promise<void>;
   toggleMic: () => Promise<void>;
   toggleCursor: () => Promise<void>;
@@ -278,21 +277,6 @@ export const useStore = create<StoreState>((set, get) => ({
       await api.openRegionOverlay(settings.target_id);
     } catch (e) {
       set({ regionPicking: false });
-      get().pushToast("error", errorMessage(e));
-    }
-  },
-
-  finishRegionPick: async (rect) => {
-    set({ regionPicking: false });
-    if (!rect) {
-      await api.cancelRegion();
-      return;
-    }
-    try {
-      await api.confirmRegion(rect);
-      const settings = { ...get().settings, region: rect };
-      set({ settings });
-    } catch (e) {
       get().pushToast("error", errorMessage(e));
     }
   },

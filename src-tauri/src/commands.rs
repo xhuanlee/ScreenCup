@@ -166,6 +166,31 @@ pub fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: Setti
     Ok(())
 }
 
+/// Grab a single frame of the target display for the region overlay's
+/// magnifier loupe. Runs on a worker thread because building a capturer on
+/// macOS drives a futures executor that dispatches onto the main queue.
+#[tauri::command]
+pub async fn grab_region_still(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    target_id: Option<u32>,
+) -> AppResult<crate::still::StillFrame> {
+    let target = crate::still::target_for_id(target_id)?;
+    let cache_dir = state.cache_dir.clone();
+    let handle = std::thread::spawn(move || {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            crate::still::grab_still(&cache_dir, &target)
+        }))
+        .map_err(|_| AppError::Internal("画面捕获意外终止".into()))?
+    });
+    let still = handle
+        .join()
+        .map_err(|_| AppError::Internal("画面捕获线程已退出".into()))??;
+    // The overlay reads the PNG through the asset protocol.
+    let _ = app.emit("screencut://still-ready", &still);
+    Ok(still)
+}
+
 /// Open the transparent region-selection overlay over the chosen display.
 #[tauri::command]
 pub fn open_region_overlay(app: AppHandle, target_id: u32) -> AppResult<()> {

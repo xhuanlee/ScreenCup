@@ -38,6 +38,7 @@ cpal = "0.15"
 
 # macOS: NSWindow windowNumber lookup for capture exclusion
 objc = "0.2.7"
+png = "0.18.1"
 
 [profile.dev]
 opt-level = 1

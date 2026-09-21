@@ -11,6 +11,7 @@ mod overlay;
 mod recorder;
 mod settings;
 mod state;
+mod still;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, ShortcutWrapper};
@@ -108,6 +109,7 @@ pub fn run() {
             commands::delete_file,
             commands::log_frontend,
             commands::probe_file,
+            commands::grab_region_still,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

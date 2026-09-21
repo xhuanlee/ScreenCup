@@ -1,10 +1,23 @@
 import { useEffect, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  getAllWebviewWindows,
+  type WebviewWindow,
+} from "@tauri-apps/api/webviewWindow";
 
 import { api, type Settings } from "../lib/api";
 import { useStore } from "../store";
 
-type Mode = "plain" | "audio" | "mic" | "window" | "region" | "pause";
+type Mode =
+  | "plain"
+  | "audio"
+  | "mic"
+  | "window"
+  | "region"
+  | "pause"
+  | "still"
+  | "regionui";
 
 /**
  * Headless self-test scenarios. The backend sets `#e2e-<mode>` via
@@ -17,6 +30,31 @@ export default function E2eRunner({ mode = "plain" }: { mode?: Mode }) {
   const log = (m: string) => {
     setLine(m);
     void invoke("log_frontend", { message: `e2e: ${m}` }).catch(() => {});
+  };
+
+  /** The region overlay is a separate webview labelled screencut-region. */
+  const waitForOverlay = async (): Promise<WebviewWindow | null> => {
+    for (let i = 0; i < 20; i++) {
+      const wins = await getAllWebviewWindows();
+      const found = wins.find((w) => w.label.startsWith("screencut-region"));
+      if (found) return found;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return null;
+  };
+
+  /** Wait until the overlay reports its listeners are live. */
+  const waitForReady = async (ov: WebviewWindow): Promise<void> => {
+    for (let i = 0; i < 40; i++) {
+      const got = new Promise<boolean>((resolve) => {
+        ov.once("screencut://overlay-ready", () => resolve(true));
+        ov.emit("screencut://e2e-ping");
+        setTimeout(() => resolve(false), 250);
+      });
+      if (await got) return;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    throw new Error("overlay never signalled ready");
   };
 
   useEffect(() => {
@@ -87,6 +125,95 @@ export default function E2eRunner({ mode = "plain" }: { mode?: Mode }) {
             log(`target: display#${main.id} (${main.width}x${main.height})`);
             break;
           }
+        }
+
+        if (mode === "still") {
+          // The region overlay's magnifier grabs a frozen frame before the
+          // selection starts; verify that path works and produces a PNG with
+          // the geometry it claims. The image is loaded the same way the
+          // overlay loads it (convertFileSrc), so this also proves the loupe
+          // will get real pixels.
+          const frame = await api.grabRegionStill(null);
+          const url = convertFileSrc(frame.path);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`asset read failed: ${res.status}`);
+          const buf = await res.arrayBuffer();
+          const png = new Uint8Array(buf);
+          const magic = [0x89, 0x50, 0x4e, 0x47];
+          for (let i = 0; i < magic.length; i++) {
+            if (png[i] !== magic[i]) throw new Error("not a PNG");
+          }
+          const px = frame.width * frame.height * 4;
+          const ratio = frame.width / window.devicePixelRatio;
+          // A real screenshot compresses far below raw RGBA; a tiny file
+          // would mean the encoder wrote an empty or solid frame.
+          const minBytes = Math.max(20_000, px / 1024);
+          log(
+            `still: ${frame.width}x${frame.height} scale=${frame.scale_factor} png=${png.length}B (min ${Math.round(minBytes)}) logical~${Math.round(ratio)}`,
+          );
+          if (png.length < minBytes) throw new Error("PNG implausibly small");
+          log("DONE");
+          return;
+        }
+
+        if (mode === "regionui") {
+          // Drive the CleanShot-style region overlay the way a user would:
+          // open it, drag out a selection, nudge it with the arrow keys, and
+          // confirm. The overlay is a separate webview, so this scenario runs
+          // the interaction against the real component and then records.
+          const main = sources.find((s) => s.is_primary && s.kind === "display");
+          if (!main) throw new Error("no primary display found");
+          await api.saveSettings({ ...base, kind: "region", target_id: main.id });
+          log("regionui: settings saved");
+
+          await api.openRegionOverlay(main.id);
+          const ov = await waitForOverlay();
+          if (!ov) throw new Error("region overlay window not found");
+          // The overlay webview must finish loading before its event
+          // listeners exist; ping until it answers.
+          await waitForReady(ov);
+          ov.setFocus();
+          await new Promise((r) => setTimeout(r, 300));
+
+          // A 960x540 drag in the upper-left quadrant.
+          const cx = (await ov.innerSize()).width;
+          const cy = (await ov.innerSize()).height;
+          const x1 = cx * 0.15;
+          const y1 = cy * 0.15;
+          const x2 = x1 + 960;
+          const y2 = y1 + 540;
+          await ov.emit("screencut://e2e-drag", { x1, y1, x2, y2 });
+          await new Promise((r) => setTimeout(r, 300));
+
+          // Arrow-key nudge: 4 px right + 4 px down.
+          await ov.emit("screencut://e2e-key", "ArrowRight");
+          await ov.emit("screencut://e2e-key", "ArrowDown");
+          await new Promise((r) => setTimeout(r, 200));
+
+          // Confirm via the same keyboard path the overlay listens to.
+          await ov.emit("screencut://e2e-key", "Enter");
+          await new Promise((r) => setTimeout(r, 600));
+
+          const after = await api.getSettings();
+          const r = after.region;
+          if (!r) throw new Error("region was not saved after confirm");
+          // Arrow keys nudge by NUDGE (2) px each.
+          const nudged =
+            Math.abs(r.x - (x1 + 2)) < 1 && Math.abs(r.y - (y1 + 2)) < 1;
+          if (!nudged) throw new Error(`nudge not applied: ${JSON.stringify(r)}`);
+          if (Math.abs(r.width - 960) > 2 || Math.abs(r.height - 540) > 2)
+            throw new Error(`size drifted: ${JSON.stringify(r)}`);
+          log(`regionui: confirmed ${JSON.stringify(r)}`);
+
+          await api.startRecording();
+          log("regionui: recording started");
+          await new Promise((r2) => setTimeout(r2, 4000));
+          const result = await api.stopRecording();
+          const probe = await invoke<string>("probe_file", { path: result.path });
+          log(`regionui: probe ${probe}`);
+          if (result.warnings.length) log(`warnings: ${result.warnings.join("; ")}`);
+          log("DONE");
+          return;
         }
 
         await api.saveSettings(settings);

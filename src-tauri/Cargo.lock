@@ -3755,6 +3755,7 @@ dependencies = [
  "log",
  "objc",
  "parking_lot",
+ "png 0.18.1",
  "scap",
  "serde",
  "serde_json",

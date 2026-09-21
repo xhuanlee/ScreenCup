@@ -117,7 +117,7 @@ function RegionRow({
     return (
       <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2.5">
         <Crop size={15} className="shrink-0 text-accent" />
-        <span className="flex-1 truncate font-mono text-[12px] text-fg">
+        <span className="flex-1 truncate font-mono text-[12px] tabular-nums text-fg">
           {Math.round(region.width)} × {Math.round(region.height)}
           <span className="text-fg-3"> @ ({Math.round(region.x)}, {Math.round(region.y)})</span>
         </span>
@@ -138,9 +138,9 @@ function RegionRow({
       type="button"
       onClick={onPick}
       disabled={picking}
-      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line-2 bg-panel-2/40 py-3.5 text-[13px] font-medium text-fg-2 transition-colors hover:border-accent/60 hover:text-fg disabled:opacity-50"
+      className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line-2 bg-panel-2/40 py-3.5 text-[13px] font-medium text-fg-2 transition-colors hover:border-accent/60 hover:text-fg disabled:opacity-50"
     >
-      <Crop size={16} />
+      <Crop size={16} className="transition-transform group-hover:scale-110" />
       {picking ? "请在屏幕上框选…" : "框选录制区域"}
     </button>
   );

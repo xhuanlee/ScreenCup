@@ -11,6 +11,13 @@ export interface Rect {
   height: number;
 }
 
+export interface StillFrame {
+  path: string;
+  width: number;
+  height: number;
+  scale_factor: number;
+}
+
 export interface AppInfo {
   version: string;
   platform: string;
@@ -74,6 +81,8 @@ export const api = {
     invoke<void>("save_settings", { settings }),
   openRegionOverlay: (targetId: number) =>
     invoke<void>("open_region_overlay", { targetId }),
+  grabRegionStill: (targetId: number | null) =>
+    invoke<StillFrame>("grab_region_still", { targetId }),
   confirmRegion: (rect: Rect) => invoke<void>("confirm_region", { rect }),
   cancelRegion: () => invoke<void>("cancel_region"),
   startRecording: () => invoke<void>("start_recording"),

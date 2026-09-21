@@ -65,8 +65,9 @@ export default function RecordingBar() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 12, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 8, scale: 0.96 }}
       transition={{ type: "spring", stiffness: 340, damping: 28 }}
       className="glass flex h-full items-center gap-3 rounded-full border border-line-2 px-4 shadow-soft"
     >
@@ -76,7 +77,10 @@ export default function RecordingBar() {
           style={
             paused
               ? { backgroundColor: "#f59e0b" }
-              : { backgroundColor: "#f43f5e", animation: "rec-blink 1.4s ease-in-out infinite" }
+              : {
+                  backgroundColor: "#f43f5e",
+                  animation: "rec-blink 1.4s ease-in-out infinite",
+                }
           }
         />
       </div>
@@ -100,7 +104,12 @@ export default function RecordingBar() {
         >
           {paused ? <Play size={14} /> : <Pause size={14} />}
         </BarBtn>
-        <BarBtn label="停止并保存" danger onClick={() => void stop(false)} disabled={stopping}>
+        <BarBtn
+          label="停止并保存"
+          danger
+          onClick={() => void stop(false)}
+          disabled={stopping}
+        >
           <Square size={13} className="fill-current" />
         </BarBtn>
         <BarBtn label="丢弃录制" onClick={() => void stop(true)} disabled={stopping}>

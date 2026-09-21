@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 
 import { useStore } from "../store";
@@ -18,7 +19,13 @@ export default function AudioControls() {
   return (
     <section className="mt-3 rounded-2xl border border-line bg-panel/60 p-1.5">
       <Row
-        icon={settings.capture_system_audio ? <Volume2 size={17} className="text-accent" /> : <VolumeX size={17} className="text-fg-3" />}
+        icon={
+          settings.capture_system_audio ? (
+            <Volume2 size={17} className="text-accent" />
+          ) : (
+            <VolumeX size={17} className="text-fg-3" />
+          )
+        }
         title="系统音频"
         subtitle={systemSupported ? "录制电脑播放的声音" : "当前系统不支持"}
       >
@@ -33,7 +40,13 @@ export default function AudioControls() {
       <div className="my-1 h-px bg-line" />
 
       <Row
-        icon={settings.capture_mic ? <Mic size={17} className="text-accent" /> : <MicOff size={17} className="text-fg-3" />}
+        icon={
+          settings.capture_mic ? (
+            <Mic size={17} className="text-accent" />
+          ) : (
+            <MicOff size={17} className="text-fg-3" />
+          )
+        }
         title="麦克风"
         subtitle={settings.capture_mic ? "录制您的旁白" : "不录制麦克风"}
       >
@@ -44,25 +57,36 @@ export default function AudioControls() {
         />
       </Row>
 
-      {settings.capture_mic && (
-        <div className="px-2.5 pb-2 pt-1">
-          {mics.length > 0 ? (
-            <Dropdown
-              value={settings.mic_device}
-              options={mics.map((name) => ({
-                value: name,
-                label: truncate(name, 30),
-              }))}
-              onChange={(name) => void pickMic(name)}
-              placeholder="默认设备"
-            />
-          ) : (
-            <p className="rounded-xl bg-panel-2/50 px-3 py-2.5 text-center text-[12px] text-fg-3">
-              未检测到麦克风设备，请检查连接与隐私设置
-            </p>
-          )}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {settings.capture_mic && (
+          <motion.div
+            key="mic-picker"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-2.5 pb-2 pt-1">
+              {mics.length > 0 ? (
+                <Dropdown
+                  value={settings.mic_device}
+                  options={mics.map((name) => ({
+                    value: name,
+                    label: truncate(name, 30),
+                  }))}
+                  onChange={(name) => void pickMic(name)}
+                  placeholder="默认设备"
+                />
+              ) : (
+                <p className="rounded-xl bg-panel-2/50 px-3 py-2.5 text-center text-[12px] text-fg-3">
+                  未检测到麦克风设备，请检查连接与隐私设置
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
