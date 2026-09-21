@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 
+import { useT } from "../i18n";
 import { useStore } from "../store";
 import Dropdown from "./ui/Dropdown";
 import Toggle from "./ui/Toggle";
@@ -13,6 +14,7 @@ export default function AudioControls() {
   const toggleSystemAudio = useStore((s) => s.toggleSystemAudio);
   const toggleMic = useStore((s) => s.toggleMic);
   const pickMic = useStore((s) => s.pickMic);
+  const t = useT();
 
   const systemSupported = info?.system_audio_supported ?? false;
 
@@ -26,14 +28,18 @@ export default function AudioControls() {
             <VolumeX size={17} className="text-fg-3" />
           )
         }
-        title="系统音频"
-        subtitle={systemSupported ? "录制电脑播放的声音" : "当前系统不支持"}
+        title={t("audio.systemTitle")}
+        subtitle={
+          systemSupported
+            ? t("audio.systemSubtitleOn")
+            : t("audio.systemUnsupported")
+        }
       >
         <Toggle
           checked={settings.capture_system_audio && systemSupported}
           onChange={toggleSystemAudio}
           disabled={!systemSupported}
-          aria-label="录制系统音频"
+          aria-label={t("audio.systemTitle")}
         />
       </Row>
 
@@ -47,13 +53,17 @@ export default function AudioControls() {
             <MicOff size={17} className="text-fg-3" />
           )
         }
-        title="麦克风"
-        subtitle={settings.capture_mic ? "录制您的旁白" : "不录制麦克风"}
+        title={t("audio.micTitle")}
+        subtitle={
+          settings.capture_mic
+            ? t("audio.micSubtitleOn")
+            : t("audio.micSubtitleOff")
+        }
       >
         <Toggle
           checked={settings.capture_mic}
           onChange={toggleMic}
-          aria-label="录制麦克风"
+          aria-label={t("audio.micTitle")}
         />
       </Row>
 
@@ -76,11 +86,11 @@ export default function AudioControls() {
                     label: truncate(name, 30),
                   }))}
                   onChange={(name) => void pickMic(name)}
-                  placeholder="默认设备"
+                  placeholder={t("audio.micDefault")}
                 />
               ) : (
                 <p className="rounded-xl bg-panel-2/50 px-3 py-2.5 text-center text-[12px] text-fg-3">
-                  未检测到麦克风设备，请检查连接与隐私设置
+                  {t("audio.noMics")}
                 </p>
               )}
             </div>

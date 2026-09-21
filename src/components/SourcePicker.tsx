@@ -1,16 +1,17 @@
 import { AppWindow, Crop, Monitor } from "lucide-react";
 import { motion } from "framer-motion";
 
+import { useT } from "../i18n";
 import { useStore, type SourceTab } from "../store";
 import type { TargetInfo } from "../lib/api";
 import { resolutionLabel, truncate } from "../lib/format";
 import Dropdown from "./ui/Dropdown";
 import type { DropdownOption } from "./ui/Dropdown";
 
-const TABS: { id: SourceTab; label: string; icon: typeof Monitor }[] = [
-  { id: "display", label: "整个屏幕", icon: Monitor },
-  { id: "window", label: "应用窗口", icon: AppWindow },
-  { id: "region", label: "自定义区域", icon: Crop },
+const TABS: { id: SourceTab; key: "display" | "window" | "region"; icon: typeof Monitor }[] = [
+  { id: "display", key: "display", icon: Monitor },
+  { id: "window", key: "window", icon: AppWindow },
+  { id: "region", key: "region", icon: Crop },
 ];
 
 export default function SourcePicker() {
@@ -21,20 +22,21 @@ export default function SourcePicker() {
   const setTab = useStore((s) => s.setTab);
   const pickTarget = useStore((s) => s.pickTarget);
   const startRegionPick = useStore((s) => s.startRegionPick);
+  const t = useT();
 
   const displays = sources.filter((s) => s.kind === "display");
   const windows = sources.filter((s) => s.kind === "window");
 
   const toOptions = (list: TargetInfo[]): DropdownOption<number>[] =>
-    list.map((t) => ({
-      value: t.id,
+    list.map((src) => ({
+      value: src.id,
       label:
-        t.kind === "display"
-          ? t.is_primary
-            ? `${t.title}（主显示器）`
-            : t.title
-          : truncate(t.title),
-      hint: resolutionLabel(t.width, t.height),
+        src.kind === "display"
+          ? src.is_primary
+            ? `${src.title}${t("source.primarySuffix")}`
+            : src.title
+          : truncate(src.title),
+      hint: resolutionLabel(src.width, src.height),
     }));
 
   const selectedSource = sources.find((s) => s.id === settings.target_id);
@@ -43,7 +45,7 @@ export default function SourcePicker() {
   return (
     <section className="mt-1">
       <div className="flex gap-1.5 rounded-2xl border border-line bg-panel/60 p-1.5">
-        {TABS.map(({ id, label, icon: Icon }) => {
+        {TABS.map(({ id, key, icon: Icon }) => {
           const active = tab === id;
           return (
             <button
@@ -61,7 +63,7 @@ export default function SourcePicker() {
                 />
               )}
               <Icon size={15} className="relative z-10" />
-              <span className="relative z-10">{label}</span>
+              <span className="relative z-10">{t(`source.${key}`)}</span>
             </button>
           );
         })}
@@ -74,7 +76,7 @@ export default function SourcePicker() {
               value={settings.target_id}
               options={toOptions(displays)}
               onChange={pickTarget}
-              placeholder="选择显示器"
+              placeholder={t("source.selectDisplay")}
               disabled={loading}
             />
             <RegionRow
@@ -88,7 +90,7 @@ export default function SourcePicker() {
             value={settings.target_id}
             options={toOptions(tab === "display" ? displays : windows)}
             onChange={pickTarget}
-            placeholder={tab === "display" ? "选择显示器" : "选择窗口"}
+            placeholder={tab === "display" ? t("source.selectDisplay") : t("source.selectWindow")}
             disabled={loading}
           />
         )}
@@ -113,6 +115,7 @@ function RegionRow({
   picking: boolean;
   onPick: () => void;
 }) {
+  const t = useT();
   if (region) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2.5">
@@ -127,7 +130,7 @@ function RegionRow({
           disabled={picking}
           className="shrink-0 rounded-lg px-2 py-1 text-[12px] font-medium text-accent transition-colors hover:bg-accent/15 disabled:opacity-50"
         >
-          重新框选
+          {t("source.repick")}
         </button>
       </div>
     );
@@ -141,7 +144,7 @@ function RegionRow({
       className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line-2 bg-panel-2/40 py-3.5 text-[13px] font-medium text-fg-2 transition-colors hover:border-accent/60 hover:text-fg disabled:opacity-50"
     >
       <Crop size={16} className="transition-transform group-hover:scale-110" />
-      {picking ? "请在屏幕上框选…" : "框选录制区域"}
+      {picking ? t("source.picking") : t("source.pickRegion")}
     </button>
   );
 }
@@ -157,16 +160,17 @@ function SummaryLine({
   fps: number;
   quality: string;
 }) {
+  const t = useT();
   const qualityLabel: Record<string, string> = {
-    original: "原画",
+    original: t("quality.original"),
     p1080: "1080P",
     p720: "720P",
     p480: "480P",
   };
   const bits = [
-    source ? truncate(source.title, 22) : "未选择源",
+    source ? truncate(source.title, 22) : t("summary.noSource"),
     source ? resolutionLabel(source.width, source.height) : null,
-    kind === "region" ? "自定义区域" : null,
+    kind === "region" ? t("summary.regionMode") : null,
     `${fps} fps`,
     qualityLabel[quality] ?? quality,
   ].filter(Boolean);

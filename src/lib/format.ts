@@ -23,8 +23,10 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(digits)} ${units[i]}`;
 }
 
+import { tr } from "../i18n";
+
 export function resolutionLabel(w: number, h: number): string {
-  if (!w || !h) return "未知尺寸";
+  if (!w || !h) return tr("toast.unknownSize");
   return `${w} × ${h}`;
 }
 

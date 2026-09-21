@@ -2,6 +2,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { tr } from "../../i18n";
+
 export interface DropdownOption<T extends string | number> {
   value: T;
   label: string;
@@ -21,7 +23,7 @@ export default function Dropdown<T extends string | number>({
   value,
   options,
   onChange,
-  placeholder = "选择…",
+  placeholder,
   disabled,
   className = "",
 }: DropdownProps<T>) {
@@ -55,7 +57,9 @@ export default function Dropdown<T extends string | number>({
         onClick={() => setOpen((v) => !v)}
         className="group flex w-full items-center gap-2 rounded-xl border border-line bg-panel-2/70 px-3 py-2.5 text-left transition-colors hover:border-line-2 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className="flex-1 truncate text-sm text-fg">{selected?.label ?? placeholder}</span>
+        <span className="flex-1 truncate text-sm text-fg">
+          {selected?.label ?? placeholder ?? tr("dropdown.placeholder")}
+        </span>
         {selected?.hint && (
           <span className="shrink-0 font-mono text-[11px] text-fg-3">{selected.hint}</span>
         )}

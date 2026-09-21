@@ -7,6 +7,7 @@ import {
 } from "@tauri-apps/api/webviewWindow";
 
 import { api, type Settings } from "../lib/api";
+import { tr, useI18n } from "../i18n";
 import { useStore } from "../store";
 
 type Mode =
@@ -17,7 +18,8 @@ type Mode =
   | "region"
   | "pause"
   | "still"
-  | "regionui";
+  | "regionui"
+  | "lang";
 
 /**
  * Headless self-test scenarios. The backend sets `#e2e-<mode>` via
@@ -212,6 +214,38 @@ export default function E2eRunner({ mode = "plain" }: { mode?: Mode }) {
           const probe = await invoke<string>("probe_file", { path: result.path });
           log(`regionui: probe ${probe}`);
           if (result.warnings.length) log(`warnings: ${result.warnings.join("; ")}`);
+          log("DONE");
+          return;
+        }
+
+        if (mode === "lang") {
+          // Switch the UI to English and back, asserting that the resolver
+          // flips, that the choice round-trips through the settings file, and
+          // that every English key resolves to a non-Chinese string.
+          useI18n.getState().init("zh");
+          if (tr("record.startHint") !== "开始录制")
+            throw new Error(`zh resolver wrong: ${tr("record.startHint")}`);
+          log("lang: zh resolves");
+
+          await useI18n.getState().setLang("en");
+          const saved = await api.getSettings();
+          if (saved.language !== "en")
+            throw new Error(`settings.language=${saved.language}, expected en`);
+          if (tr("record.startHint") !== "Start recording")
+            throw new Error(`en resolver wrong: ${tr("record.startHint")}`);
+          log(`lang: en resolves (${tr("source.display")} / ${tr("perm.grant")})`);
+
+          // Spot-check that interpolation still works.
+          const notice = tr("ffmpeg.prefix");
+          if (!notice) throw new Error("interpolation key empty");
+
+          await useI18n.getState().setLang("zh");
+          const back = await api.getSettings();
+          if (back.language !== "zh")
+            throw new Error(`settings.language=${back.language}, expected zh`);
+          if (tr("record.startHint") !== "开始录制")
+            throw new Error(`zh restore wrong: ${tr("record.startHint")}`);
+          log("lang: zh restored");
           log("DONE");
           return;
         }

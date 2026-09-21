@@ -4,6 +4,7 @@ import { FolderOpen, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import { api, type RecordingResult } from "../lib/api";
+import { useT } from "../i18n";
 import { useStore } from "../store";
 import { formatBytes, formatDuration, resolutionLabel } from "../lib/format";
 
@@ -11,6 +12,7 @@ export default function ResultSheet() {
   const result = useStore((s) => s.result);
   const clearResult = useStore((s) => s.clearResult);
   const discardRecording = useStore((s) => s.discardRecording);
+  const t = useT();
 
   return (
     <AnimatePresence>
@@ -32,26 +34,26 @@ export default function ResultSheet() {
               <div className="truncate font-mono text-[10.5px] text-fg-3">
                 {formatDuration(result.duration_ms)} · {resolutionLabel(result.width, result.height)}
                 {result.codec ? ` · ${result.codec.toUpperCase()}` : ""} · {formatBytes(result.size_bytes)}
-                {result.audio ? "" : " · 无音频"}
+                {result.audio ? "" : t("result.noAudio")}
               </div>
             </div>
 
             <IconButton
-              label="在文件夹中显示"
+              label={t("result.reveal")}
               onClick={() => void api.revealFile(result.path)}
             >
               <FolderOpen size={15} />
             </IconButton>
 
             <IconButton
-              label="删除"
+              label={t("result.delete")}
               danger
               onClick={() => void discardRecording()}
             >
               <Trash2 size={15} />
             </IconButton>
 
-            <IconButton label="关闭" onClick={clearResult}>
+            <IconButton label={t("result.close")} onClick={clearResult}>
               <X size={15} />
             </IconButton>
           </div>
@@ -62,12 +64,13 @@ export default function ResultSheet() {
 }
 
 function Preview({ result }: { result: RecordingResult }) {
+  const t = useT();
   const [failed, setFailed] = useState(false);
 
   if (failed) {
     return (
       <div className="grid h-[120px] place-items-center bg-bg-2 text-[12px] text-fg-3">
-        预览不可用
+        {t("result.previewUnavailable")}
       </div>
     );
   }

@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type SourceKind = "display" | "window" | "region";
+/** UI language, persisted in settings. */
+export type Lang = "zh" | "en";
 export type QualityPreset = "original" | "p1080" | "p720" | "p480";
 export type SessionState = "idle" | "recording" | "paused" | "stopping";
 
@@ -55,6 +57,7 @@ export interface Settings {
   quality: QualityPreset;
   output_dir: string | null;
   hide_main_while_recording: boolean;
+  language: string;
 }
 
 export interface RecordingResult {

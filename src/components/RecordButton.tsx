@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Loader2, Square } from "lucide-react";
 
+import { useT } from "../i18n";
 import { useStore } from "../store";
 
 export default function RecordButton() {
@@ -11,6 +12,7 @@ export default function RecordButton() {
   const info = useStore((s) => s.info);
   const startRecording = useStore((s) => s.startRecording);
   const stopRecording = useStore((s) => s.stopRecording);
+  const t = useT();
 
   const recording = state === "recording" || state === "paused";
   const regionMissing = settings.kind === "region" && !settings.region;
@@ -19,12 +21,12 @@ export default function RecordButton() {
 
   const disabled = busy || regionMissing || noFfmpeg;
   const hint = noFfmpeg
-    ? "未检测到 ffmpeg"
+    ? t("record.ffmpegMissing")
     : regionMissing
-      ? "请先框选录制区域"
+      ? t("record.regionMissing")
       : recording
-        ? "点击停止并保存"
-        : "开始录制";
+        ? t("record.stopHint")
+        : t("record.startHint");
 
   const onClick = () => {
     if (recording) void stopRecording();
@@ -45,7 +47,7 @@ export default function RecordButton() {
               ? "bg-panel-2 border border-line-2 hover:border-danger/60"
               : "bg-gradient-to-br from-danger to-danger-2 shadow-[0_8px_28px_rgba(244,63,94,0.45)]"
         }`}
-        aria-label={recording ? "停止录制" : "开始录制"}
+        aria-label={recording ? t("record.stopAria") : t("record.startAria")}
       >
         {!recording && !disabled && (
           <span
@@ -64,8 +66,8 @@ export default function RecordButton() {
 
       <span className="text-[12px] font-medium text-fg-2">{hint}</span>
       <span className="font-mono text-[10.5px] text-fg-3">
-        {info?.platform === "macos" ? "⇧⌘R" : "Ctrl+Shift+R"} 开始 / 停止 ·{" "}
-        {info?.platform === "macos" ? "⇧⌘P" : "Ctrl+Shift+P"} 暂停
+        {info?.platform === "macos" ? "⇧⌘R" : "Ctrl+Shift+R"} {t("record.hotkeyStartStop")} ·{" "}
+        {info?.platform === "macos" ? "⇧⌘P" : "Ctrl+Shift+P"} {t("record.hotkeyPause")}
       </span>
     </div>
   );

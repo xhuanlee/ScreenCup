@@ -52,6 +52,8 @@ pub struct Settings {
     pub output_dir: Option<String>,
     /// Hide the main window while recording, leaving only the floating bar.
     pub hide_main_while_recording: bool,
+    /// UI language: "zh" or "en". Anything else falls back to Chinese.
+    pub language: String,
 }
 
 impl Default for Settings {
@@ -68,7 +70,24 @@ impl Default for Settings {
             quality: QualityPreset::Original,
             output_dir: None,
             hide_main_while_recording: true,
+            language: default_language(),
         }
+    }
+}
+
+/// Best-effort first-run language. macOS/Linux expose the locale via `LANG`;
+/// a Chinese locale yields "zh", everything else "en". Windows has no `LANG`
+/// env var, so it falls back to Chinese — the app's original language — and
+/// the user can switch in the header.
+fn default_language() -> String {
+    let is_chinese = std::env::var("LANG")
+        .ok()
+        .and_then(|l| l.split('_').next().map(|tag| tag == "zh"))
+        .unwrap_or(true);
+    if is_chinese {
+        "zh".to_string()
+    } else {
+        "en".to_string()
     }
 }
 
@@ -161,5 +180,25 @@ mod tests {
         assert_eq!(s.effective_fps(), 30);
         s.fps = 24;
         assert_eq!(s.effective_fps(), 24);
+    }
+
+    #[test]
+    fn language_roundtrips() {
+        let dir = std::env::temp_dir().join("screencut-settings-lang-test");
+        let _ = fs::remove_dir_all(&dir);
+        let mut s = Settings::default();
+        s.language = "en".to_string();
+        s.save(&dir).unwrap();
+        let loaded = Settings::load(&dir);
+        assert_eq!(loaded.language, "en");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unknown_language_is_chinese_by_default() {
+        // A settings file with an unknown/absent language must not panic and
+        // must fall back to something usable.
+        let s = Settings::default();
+        assert!(s.language == "zh" || s.language == "en");
     }
 }

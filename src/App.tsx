@@ -10,6 +10,7 @@ import ResultSheet from "./components/ResultSheet";
 import SourcePicker from "./components/SourcePicker";
 import Toasts from "./components/Toasts";
 import { useStore } from "./store";
+import { useT } from "./i18n";
 import Logo from "./components/Logo";
 
 export default function App() {
@@ -63,13 +64,18 @@ export default function App() {
 }
 
 function FfmpegNotice() {
+  const t = useT();
   return (
     <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
       <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-400" />
       <div className="text-[12px] leading-relaxed text-amber-100/80">
-        未在系统中找到 <span className="font-mono">ffmpeg</span>，无法完成视频编码。请安装
-        <span className="font-mono"> ffmpeg</span> 并确保其在 PATH 中，或设置环境变量
-        <span className="font-mono"> SCREENCUT_FFMPEG</span>。
+        {t("ffmpeg.prefix")}
+        <span className="font-mono">ffmpeg</span>
+        {t("ffmpeg.first")}
+        <span className="font-mono">ffmpeg</span>
+        {t("ffmpeg.middle")}
+        <span className="font-mono">SCREENCUT_FFMPEG</span>
+        {t("ffmpeg.suffix")}
       </div>
     </div>
   );

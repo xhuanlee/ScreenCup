@@ -1,23 +1,11 @@
 import { FolderOpen, MousePointerClick } from "lucide-react";
 
+import { useT } from "../i18n";
 import { useStore } from "../store";
 import type { QualityPreset } from "../lib/api";
 import { shortPath } from "../lib/format";
 import Dropdown from "./ui/Dropdown";
 import Toggle from "./ui/Toggle";
-
-const QUALITIES: { value: QualityPreset; label: string; hint: string }[] = [
-  { value: "original", label: "原画", hint: "最高" },
-  { value: "p1080", label: "1080P", hint: "流畅" },
-  { value: "p720", label: "720P", hint: "较小" },
-  { value: "p480", label: "480P", hint: "最小" },
-];
-
-const FPS = [
-  { value: 24, label: "24", hint: "电影" },
-  { value: 30, label: "30", hint: "标准" },
-  { value: 60, label: "60", hint: "顺滑" },
-];
 
 export default function OutputSettings() {
   const settings = useStore((s) => s.settings);
@@ -27,20 +15,34 @@ export default function OutputSettings() {
   const setFps = useStore((s) => s.setFps);
   const toggleCursor = useStore((s) => s.toggleCursor);
   const chooseFolder = useStore((s) => s.chooseFolder);
+  const t = useT();
+
+  const QUALITIES: { value: QualityPreset; label: string; hint: string }[] = [
+    { value: "original", label: t("quality.original"), hint: t("quality.best") },
+    { value: "p1080", label: "1080P", hint: t("quality.smooth") },
+    { value: "p720", label: "720P", hint: t("quality.smaller") },
+    { value: "p480", label: "480P", hint: t("quality.smallest") },
+  ];
+
+  const FPS = [
+    { value: 24, label: "24", hint: t("quality.cinematic") },
+    { value: 30, label: "30", hint: t("quality.standard") },
+    { value: 60, label: "60", hint: t("quality.buttery") },
+  ];
 
   const dir = shortPath(settings.output_dir ?? info?.default_output_dir ?? "", home);
 
   return (
     <section className="mt-3 rounded-2xl border border-line bg-panel/60 p-4">
       <div className="grid grid-cols-2 gap-3">
-        <Field label="画质">
+        <Field label={t("output.quality")}>
           <Dropdown
             value={settings.quality}
             options={QUALITIES}
             onChange={(q) => void setQuality(q)}
           />
         </Field>
-        <Field label="帧率">
+        <Field label={t("output.fps")}>
           <Dropdown value={settings.fps} options={FPS} onChange={(f) => void setFps(f)} />
         </Field>
       </div>
@@ -52,18 +54,24 @@ export default function OutputSettings() {
       >
         <FolderOpen size={16} className="shrink-0 text-fg-2" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[11px] text-fg-3">保存位置</span>
-          <span className="block truncate text-[12.5px] text-fg-2">{dir || "默认视频文件夹"}</span>
+          <span className="block text-[11px] text-fg-3">{t("output.location")}</span>
+          <span className="block truncate text-[12.5px] text-fg-2">
+            {dir || t("output.defaultDir")}
+          </span>
         </span>
-        <span className="shrink-0 text-[12px] font-medium text-accent">更改</span>
+        <span className="shrink-0 text-[12px] font-medium text-accent">{t("output.change")}</span>
       </button>
 
       <div className="mt-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 text-[12.5px] text-fg-2">
           <MousePointerClick size={15} className="text-fg-3" />
-          录制鼠标光标
+          {t("output.cursor")}
         </div>
-        <Toggle checked={settings.show_cursor} onChange={toggleCursor} aria-label="录制鼠标光标" />
+        <Toggle
+          checked={settings.show_cursor}
+          onChange={toggleCursor}
+          aria-label={t("output.cursor")}
+        />
       </div>
     </section>
   );

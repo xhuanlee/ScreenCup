@@ -14,6 +14,7 @@ import {
   type TargetInfo,
 } from "./lib/api";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { tr, useI18n, type Lang } from "./i18n";
 
 export type SourceTab = Extract<SourceKind, "display" | "window" | "region">;
 
@@ -83,6 +84,7 @@ const DEFAULT_SETTINGS: Settings = {
   quality: "original",
   output_dir: null,
   hide_main_while_recording: true,
+  language: "zh",
 };
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -184,6 +186,10 @@ export const useStore = create<StoreState>((set, get) => ({
       unlisteners,
     });
 
+    // The overlay and the recording bar are separate webviews, but they read
+    // the same persisted settings, so this keeps every surface in sync.
+    useI18n.getState().init(settings.language as Lang);
+
     invoke("log_frontend", { message: "init: listeners ready" }).catch(() => {});
 
     set({
@@ -269,7 +275,7 @@ export const useStore = create<StoreState>((set, get) => ({
   startRegionPick: async () => {
     const { settings } = get();
     if (settings.target_id === null) {
-      get().pushToast("error", "请先选择一个显示器");
+      get().pushToast("error", tr("toast.selectDisplay"));
       return;
     }
     set({ regionPicking: true });
@@ -333,11 +339,11 @@ export const useStore = create<StoreState>((set, get) => ({
     const { state, settings, info } = get();
     if (state === "recording" || state === "paused") return;
     if (settings.kind === "region" && !settings.region) {
-      get().pushToast("error", "请先框选录制区域");
+      get().pushToast("error", tr("toast.regionFirst"));
       return;
     }
     if (info && !info.has_ffmpeg) {
-      get().pushToast("error", "未找到 ffmpeg，无法编码视频");
+      get().pushToast("error", tr("toast.noFfmpeg"));
       return;
     }
     set({ starting: true, error: null });
@@ -389,7 +395,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (result) {
       try {
         await api.deleteFile(result.path);
-        get().pushToast("info", "已丢弃该录制");
+        get().pushToast("info", tr("toast.discarded"));
       } catch (e) {
         get().pushToast("error", errorMessage(e));
         set({ result });
@@ -413,5 +419,5 @@ export const useStore = create<StoreState>((set, get) => ({
 export function errorMessage(e: unknown): string {
   if (typeof e === "string") return e;
   if (e instanceof Error) return e.message;
-  return "未知错误";
+  return tr("toast.unknownError");
 }

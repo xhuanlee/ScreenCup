@@ -3,13 +3,15 @@ import { motion } from "framer-motion";
 import { Pause, Play, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { api, type SessionState } from "../lib/api";
+import { api, type Lang, type SessionState } from "../lib/api";
 import { formatDuration } from "../lib/format";
+import { useI18n, useT } from "../i18n";
 
 export default function RecordingBar() {
   const [elapsed, setElapsed] = useState(0);
   const [state, setState] = useState<SessionState>("recording");
   const [busy, setBusy] = useState<"stop" | "pause" | null>(null);
+  const t = useT();
 
   useEffect(() => {
     document.body.classList.add("is-overlay");
@@ -26,6 +28,14 @@ export default function RecordingBar() {
         setState(current);
       } catch {
         /* window may outlive the session */
+      }
+      // The bar is its own webview: pick up the language the user chose in
+      // the main window from the shared settings file.
+      try {
+        const settings = await api.getSettings();
+        useI18n.getState().init(settings.language as Lang);
+      } catch {
+        /* default language is fine */
       }
     })();
 
@@ -90,7 +100,7 @@ export default function RecordingBar() {
           {formatDuration(elapsed)}
         </div>
         <div className="text-[9.5px] uppercase tracking-wider text-fg-3">
-          {stopping ? "正在保存" : paused ? "已暂停" : "录制中"}
+          {stopping ? t("bar.saving") : paused ? t("bar.paused") : t("bar.recording")}
         </div>
       </div>
 
@@ -98,21 +108,21 @@ export default function RecordingBar() {
 
       <div className="flex items-center gap-1.5">
         <BarBtn
-          label={paused ? "继续" : "暂停"}
+          label={paused ? t("bar.resume") : t("bar.pause")}
           onClick={() => void togglePause()}
           disabled={stopping}
         >
           {paused ? <Play size={14} /> : <Pause size={14} />}
         </BarBtn>
         <BarBtn
-          label="停止并保存"
+          label={t("bar.stop")}
           danger
           onClick={() => void stop(false)}
           disabled={stopping}
         >
           <Square size={13} className="fill-current" />
         </BarBtn>
-        <BarBtn label="丢弃录制" onClick={() => void stop(true)} disabled={stopping}>
+        <BarBtn label={t("bar.discard")} onClick={() => void stop(true)} disabled={stopping}>
           <X size={14} />
         </BarBtn>
       </div>

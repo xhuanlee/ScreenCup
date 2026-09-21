@@ -3,7 +3,8 @@ import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
-import { api, type Rect, type StillFrame } from "../lib/api";
+import { api, type Lang, type Rect, type StillFrame } from "../lib/api";
+import { useI18n, useT } from "../i18n";
 
 interface Point {
   x: number;
@@ -41,6 +42,15 @@ export default function RegionOverlay() {
   useEffect(() => {
     document.body.classList.add("is-overlay");
     return () => document.body.classList.remove("is-overlay");
+  }, []);
+
+  // The overlay is its own webview, so it hydrates the language from the same
+  // persisted settings the main window wrote.
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((s) => useI18n.getState().init(s.language as Lang))
+      .catch(() => {});
   }, []);
 
   // The loupe renders a frozen frame, so the selection never fights a moving
@@ -290,6 +300,7 @@ function Loupe({
   still: StillFrame | null;
   rect: Rect | null;
 }) {
+  const t = useT();
   const src = still ? convertFileSrc(still.path) : null;
   // Keep the loupe on screen when the cursor nears an edge.
   const flipX = cursor.x + LOUPE + LOUPE_OFFSET > window.innerWidth;
@@ -319,7 +330,7 @@ function Loupe({
           />
         ) : (
           <div className="grid h-full w-full place-items-center bg-bg-2 text-[10px] text-fg-3">
-            画面准备中
+            {t("region.preparing")}
           </div>
         )}
         {/* Loupe centre crosshair */}
@@ -407,6 +418,7 @@ function Handles() {
 }
 
 function HintBar({ valid }: { valid: boolean }) {
+  const t = useT();
   return (
     <div className="pointer-events-none absolute left-1/2 top-7 flex -translate-x-1/2 items-center gap-2">
       <motion.div
@@ -416,9 +428,7 @@ function HintBar({ valid }: { valid: boolean }) {
         className="glass flex items-center gap-2.5 rounded-full border border-line-2 px-4 py-2 text-[12.5px] text-fg-2 shadow-soft"
       >
         <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-        {valid
-          ? "拖动移动 · 拖角调整 · ←→↑↓ 微调 · 回车确认 · Esc 取消"
-          : "按住拖拽框选 · ←→↑↓ 微调 · 回车确认 · Esc 取消"}
+        {valid ? t("region.hintActive") : t("region.hintIdle")}
       </motion.div>
     </div>
   );
@@ -435,6 +445,7 @@ function Toolbar({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <div className="absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-2.5">
       <button
@@ -443,7 +454,7 @@ function Toolbar({
         disabled={done}
         className="glass h-10 rounded-full border border-line-2 px-5 text-[13px] font-medium text-fg-2 transition-colors hover:text-fg disabled:opacity-50"
       >
-        取消
+        {t("region.cancel")}
       </button>
       <button
         type="button"
@@ -451,7 +462,7 @@ function Toolbar({
         disabled={!valid || done}
         className="h-10 rounded-full bg-accent px-7 text-[13px] font-semibold text-white shadow-glow transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
       >
-        完成录制区域
+        {t("region.confirm")}
       </button>
     </div>
   );
