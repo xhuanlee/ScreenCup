@@ -60,6 +60,23 @@ pub fn run() {
             log::info!("cache dir: {}", cache_dir.display());
 
             app.manage(AppState::new(data_dir, cache_dir));
+
+            // macOS quarantines any app downloaded from the internet (a DMG
+            // from a browser gets `com.apple.quarantine` on every file inside
+            // it). A quarantined app that is only ad-hoc signed is in a
+            // degraded state: tccd reports "Failed to match existing code
+            // requirement" for every screen-capture check, so the user can
+            // toggle the Screen Recording switch in System Settings until
+            // they are blue in the face and permission never lands. Clearing
+            // the attribute restores normal TCC behaviour — verified by hand
+            // on macOS 15.7: same binary, permission false while quarantined,
+            // true immediately after `xattr -cr`.
+            //
+            // The user owns the bundle they dragged out of the DMG, so this
+            // needs no extra privileges.
+            #[cfg(target_os = "macos")]
+            clear_quarantine_if_needed();
+
             log::info!(
                 "screen recording permission: {}",
                 scap::has_permission()
@@ -222,4 +239,68 @@ fn build_tray(app: &tauri::AppHandle) -> AppResult<()> {
 
     tray.build(app)?;
     Ok(())
+}
+
+/// Strip the macOS quarantine attribute from our own bundle.
+///
+/// A browser-downloaded DMG marks every file it contains with
+/// `com.apple.quarantine`. While that flag is present, tccd refuses to match
+/// the app's code requirement for `kTCCServiceScreenCapture`, so the Screen
+/// Recording toggle in System Settings has no effect on the running process.
+/// Removing the flag (which the owning user may do without elevated
+/// privileges) restores normal permission handling.
+///
+/// Returns the bundle path if the attribute was present and removed, so the
+/// caller can log it and the UI can ask the user to restart.
+#[cfg(target_os = "macos")]
+fn clear_quarantine_if_needed() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    // Walk up from Contents/MacOS/<binary> to the .app bundle itself.
+    let mut bundle = exe.clone();
+    for ancestor in exe.ancestors() {
+        if ancestor
+            .extension()
+            .is_some_and(|ext| ext == "app")
+        {
+            bundle = ancestor.to_path_buf();
+            break;
+        }
+    }
+
+    // `xattr -p` would be the direct check, but reading the attribute from
+    // Rust needs an extra crate; `xattr -cr` is idempotent and cheap, so just
+    // probe for the flag's presence first with the same tool.
+    let has_flag = std::process::Command::new("xattr")
+        .arg("-p")
+        .arg("com.apple.quarantine")
+        .arg(&bundle)
+        .output()
+        .ok()
+        .is_some_and(|out| out.status.success());
+
+    if !has_flag {
+        return None;
+    }
+
+    let status = std::process::Command::new("xattr")
+        .arg("-cr")
+        .arg(&bundle)
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            log::info!(
+                "cleared quarantine attribute from {} — restart needed for TCC to re-evaluate",
+                bundle.display()
+            );
+            Some(bundle)
+        }
+        _ => {
+            log::warn!(
+                "failed to clear quarantine attribute from {} — screen recording permission may not be grantable until it is removed manually",
+                bundle.display()
+            );
+            None
+        }
+    }
 }
