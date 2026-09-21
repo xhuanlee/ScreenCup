@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>ScreenCut 需要访问麦克风，以便在录屏时录制您的旁白。</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>ScreenCut 需要屏幕录制权限，以便捕获您的屏幕、窗口或选定区域。</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>zh-Hans</string>
+    <string>zh-Hant</string>
+    <string>en</string>
+  </array>
+</dict>
+</plist>

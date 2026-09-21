@@ -1,0 +1,223 @@
+#![allow(clippy::too_many_lines)]
+
+mod audio;
+mod capture;
+mod commands;
+mod error;
+mod events;
+pub mod ffmpeg;
+mod geometry;
+mod overlay;
+mod recorder;
+mod settings;
+mod state;
+
+use tauri::{Emitter, Manager};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, ShortcutWrapper};
+
+use crate::error::AppResult;
+use crate::state::AppState;
+
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .setup(|app| {
+            // Log to a file: a GUI app has no visible stdout, so without this
+            // there is nothing to attach to a bug report.
+            if let Ok(log_dir) = app.path().app_log_dir() {
+                let _ = std::fs::create_dir_all(&log_dir);
+                let path = log_dir.join("screencut.log");
+                // Rotate the previous run out if the log grew past 1 MB.
+                if let Ok(meta) = std::fs::metadata(&path) {
+                    if meta.len() > 1_000_000 {
+                        let _ = std::fs::rename(&path, log_dir.join("screencut.log.old"));
+                    }
+                }
+                if let Ok(file) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&path)
+                {
+                    let _ = env_logger::Builder::from_env(
+                        env_logger::Env::default().default_filter_or("info"),
+                    )
+                    .format_timestamp_secs()
+                    .target(env_logger::Target::Pipe(Box::new(file)))
+                    .try_init();
+                    log::info!("logging to {}", path.display());
+                }
+            }
+
+            let data_dir = app.path().app_data_dir()?;
+            let cache_dir = app.path().app_cache_dir()?;
+            std::fs::create_dir_all(&data_dir)?;
+            std::fs::create_dir_all(&cache_dir)?;
+            log::info!("data dir: {}", data_dir.display());
+            log::info!("cache dir: {}", cache_dir.display());
+
+            app.manage(AppState::new(data_dir, cache_dir));
+            log::info!(
+                "screen recording permission: {}",
+                scap::has_permission()
+            );
+
+            let handle = app.handle();
+            apply_window_chrome(handle)?;
+            register_hotkeys(handle)?;
+            build_tray(handle)?;
+
+            if let Some(win) = app.get_webview_window("main") {
+                win.show()?;
+                win.set_focus()?;
+                // Headless self-test channel: `SCREENCUT_E2E=1` flips the main
+                // window into a scripted record/stop/verify flow (see main.tsx).
+                if std::env::var("SCREENCUT_E2E").is_ok() {
+                    // Mode selects the scripted scenario: plain (video only),
+                    // audio (system audio), mic, window, region, pause.
+                    let mode = std::env::var("SCREENCUT_E2E_MODE")
+                        .ok()
+                        .filter(|m| !m.is_empty())
+                        .unwrap_or_else(|| "plain".to_string());
+                    let _ = win.eval(&format!("window.location.hash = '#e2e-{mode}'"));
+                }
+            }
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_app_info,
+            commands::list_sources,
+            commands::list_microphones,
+            commands::check_permission,
+            commands::request_permission,
+            commands::get_settings,
+            commands::save_settings,
+            commands::open_region_overlay,
+            commands::confirm_region,
+            commands::cancel_region,
+            commands::start_recording,
+            commands::stop_recording,
+            commands::pause_recording,
+            commands::resume_recording,
+            commands::get_recording_state,
+            commands::get_last_result,
+            commands::choose_output_dir,
+            commands::reveal_file,
+            commands::delete_file,
+            commands::log_frontend,
+            commands::probe_file,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+/// Platform-specific chrome for the main window: macOS keeps native
+/// decorations with an overlay title bar; Windows goes frameless.
+fn apply_window_chrome(app: &tauri::AppHandle) -> AppResult<()> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(win) = app.get_webview_window("main") {
+            win.set_title_bar_style(tauri::TitleBarStyle::Overlay)?;
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(win) = app.get_webview_window("main") {
+            win.set_decorations(false)?;
+        }
+    }
+    let _ = app;
+    Ok(())
+}
+
+fn register_hotkeys(app: &tauri::AppHandle) -> AppResult<()> {
+    let gs = app.global_shortcut();
+
+    let app_handle = app.clone();
+    gs.on_shortcut(
+        ShortcutWrapper::try_from("CommandOrControl+Shift+R")
+            .map_err(|e| error::AppError::Internal(format!("快捷键注册失败: {e}")))?,
+        move |_app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                let _ = app_handle.emit("screencut://hotkey", "toggle");
+            }
+        },
+    )
+    .map_err(|e| error::AppError::Internal(format!("快捷键注册失败: {e}")))?;
+
+    let app_handle = app.clone();
+    gs.on_shortcut(
+        ShortcutWrapper::try_from("CommandOrControl+Shift+P")
+            .map_err(|e| error::AppError::Internal(format!("快捷键注册失败: {e}")))?,
+        move |_app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                let _ = app_handle.emit("screencut://hotkey", "pause-toggle");
+            }
+        },
+    )
+    .map_err(|e| error::AppError::Internal(format!("快捷键注册失败: {e}")))?;
+
+    log::info!("global shortcuts registered");
+    Ok(())
+}
+
+fn build_tray(app: &tauri::AppHandle) -> AppResult<()> {
+    let show = tauri::menu::MenuItemBuilder::with_id("show", "显示主窗口")
+        .build(app)?;
+    let toggle = tauri::menu::MenuItemBuilder::with_id("toggle", "开始 / 停止录制")
+        .build(app)?;
+    let quit = tauri::menu::MenuItemBuilder::with_id("quit", "退出 ScreenCut")
+        .build(app)?;
+    // tauri's MenuBuilder only assembles a flat menu; the item helpers live on
+    // SubmenuBuilder, so wrap the items in a single submenu.
+    let menu = tauri::menu::Menu::new(app)?;
+    let submenu = tauri::menu::SubmenuBuilder::new(app, "ScreenCut")
+        .item(&show)
+        .item(&toggle)
+        .separator()
+        .item(&quit)
+        .build()?;
+    menu.append(&submenu)?;
+
+    let mut tray = tauri::tray::TrayIconBuilder::new()
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+            }
+            "toggle" => {
+                let _ = app.emit("screencut://hotkey", "toggle");
+            }
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let tauri::tray::TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+
+    tray.build(app)?;
+    Ok(())
+}
