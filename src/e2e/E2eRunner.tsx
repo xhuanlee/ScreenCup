@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   getAllWebviewWindows,
   type WebviewWindow,
@@ -19,6 +20,7 @@ type Mode =
   | "pause"
   | "still"
   | "regionui"
+  | "drag"
   | "lang";
 
 /**
@@ -214,6 +216,30 @@ export default function E2eRunner({ mode = "plain" }: { mode?: Mode }) {
           const probe = await invoke<string>("probe_file", { path: result.path });
           log(`regionui: probe ${probe}`);
           if (result.warnings.length) log(`warnings: ${result.warnings.join("; ")}`);
+          log("DONE");
+          return;
+        }
+
+        if (mode === "drag") {
+          // The title bar drag depends on the `core:window:allow-start-dragging`
+          // capability and on `startDragging` being callable from a timer
+          // (macOS synthesizes the mouse-down event it needs). This scenario
+          // exercises both without a human at the mouse.
+          const win = getCurrentWindow();
+          const before = await win.outerPosition();
+          log(`pos before: ${before.x},${before.y}`);
+          try {
+            await win.startDragging();
+            log("startDragging: resolved");
+          } catch (e) {
+            throw new Error(`startDragging rejected: ${String(e)}`);
+          }
+          // The drag runs its own event loop; without a real mouse it returns
+          // immediately. The call resolving is the interesting part — a
+          // missing capability rejects the promise instead.
+          await new Promise((r) => setTimeout(r, 400));
+          const after = await win.outerPosition();
+          log(`pos after: ${after.x},${after.y}`);
           log("DONE");
           return;
         }

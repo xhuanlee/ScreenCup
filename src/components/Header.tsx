@@ -30,6 +30,7 @@ export default function Header() {
 
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const dragging = useRef(false);
   const [arming, setArming] = useState(false);
 
   const cancelHold = () => {
@@ -44,8 +45,9 @@ export default function Header() {
   // Tauri's built-in `data-tauri-drag-region` starts a drag the instant the
   // mouse goes down, which steals clicks from the buttons and title area.
   // Long-press instead: start dragging only after a deliberate hold, and bail
-  // out if the pointer wanders off first. `startDragging` synthesizes a
-  // LeftMouseDown event when called outside a real one, so a timer call works.
+  // out if the pointer wanders off during the wait. Once the drag is running,
+  // the OS owns the pointer — JS move events during it are the window itself
+  // moving under the cursor, so they must not cancel anything.
   const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return;
     // Buttons manage their own pointer events; a press on them must not arm.
@@ -54,12 +56,24 @@ export default function Header() {
     setArming(true);
     holdTimer.current = setTimeout(() => {
       holdTimer.current = null;
+      pressOrigin.current = null;
       setArming(false);
-      void getCurrentWindow().startDragging();
+      dragging.current = true;
+      // startDragging hands the pointer to the OS window server, which runs
+      // its own drag loop; this promise resolves once the drag ends.
+      void getCurrentWindow()
+        .startDragging()
+        .catch((err) =>
+          invoke("log_frontend", { message: `drag: startDragging FAILED: ${String(err)}` }),
+        )
+        .finally(() => {
+          dragging.current = false;
+        });
     }, DRAG_HOLD_MS);
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    if (dragging.current) return;
     const origin = pressOrigin.current;
     if (!origin) return;
     if (
