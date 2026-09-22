@@ -16,6 +16,7 @@ export const en: Translations = {
     language: "Language",
     languageZh: "中文",
     languageEn: "English",
+    dragHint: "Hold to move window",
   },
 
   source: {

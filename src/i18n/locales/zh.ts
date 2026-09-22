@@ -15,6 +15,7 @@ export const zh = {
     language: "语言",
     languageZh: "中文",
     languageEn: "English",
+    dragHint: "按住移动窗口",
   },
 
   source: {
