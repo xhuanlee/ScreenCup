@@ -311,19 +311,25 @@ fn dequarantine_and_relaunch_if_needed(cache_dir: &std::path::Path) {
             .is_some_and(|out| out.status.success())
     };
 
-    // The translocated copy always carries the flag; the interesting question
-    // is whether the installed bundle does.
+    // Two cases need a relaunch through LaunchServices:
+    //   1. we are the quarantined copy itself (cleared the flag, but tccd
+    //      still holds our poisoned identity), or
+    //   2. we are the translocated sandbox copy, whose identity tccd will
+    //      never match the installed bundle's, so a grant made now is wasted.
+    // In case 2 the installed bundle may already be clean; we still relaunch,
+    // because *this* process is the one with the bad identity.
     let installed = if is_translocated(&bundle) {
         // The App Translocation path is `/private/var/folders/.../AppTranslocation/<UUID>/d/<bundle>`.
         // There is no reliable way back to the original from here, so fall
         // back to the conventional install location.
-        let candidate = std::path::Path::new("/Applications").join(bundle.file_name().unwrap_or_default());
-        if has_flag(&candidate) {
-            candidate
-        } else {
-            // The real bundle is clean already; nothing to do.
+        let candidate = std::path::Path::new("/Applications")
+            .join(bundle.file_name().unwrap_or_default());
+        if !candidate.exists() {
+            // Running from a translocated copy with no installed counterpart
+            // (e.g. launched straight out of a DMG). Nothing to relaunch into.
             return;
         }
+        candidate
     } else {
         if !has_flag(&bundle) {
             return;
@@ -349,37 +355,41 @@ fn dequarantine_and_relaunch_if_needed(cache_dir: &std::path::Path) {
         }
     }
 
-    let cleared = std::process::Command::new("xattr")
-        .arg("-cr")
-        .arg(&installed)
-        .status()
-        .ok()
-        .is_some_and(|s| s.success());
+    // Only clear when the flag is actually present; `xattr -cr` on an already
+    // clean bundle is a harmless no-op but we log the real action.
+    if has_flag(&installed) {
+        let cleared = std::process::Command::new("xattr")
+            .arg("-cr")
+            .arg(&installed)
+            .status()
+            .ok()
+            .is_some_and(|s| s.success());
 
-    if !cleared || has_flag(&installed) {
-        log::warn!(
-            "failed to clear quarantine attribute from {} — screen recording \
-             permission may not be grantable until it is removed manually \
-             (`xattr -cr {}`)",
-            installed.display(),
+        if !cleared || has_flag(&installed) {
+            log::warn!(
+                "failed to clear quarantine attribute from {} — screen recording \
+                 permission may not be grantable until it is removed manually \
+                 (`xattr -cr {}`)",
+                installed.display(),
+                installed.display()
+            );
+            return;
+        }
+
+        log::info!(
+            "cleared quarantine attribute from {}",
             installed.display()
         );
-        return;
     }
-
-    log::info!(
-        "cleared quarantine attribute from {}",
-        installed.display()
-    );
     let _ = std::fs::write(&marker, b"");
 
-    // Permission may already be fine (the user granted it to a clean copy
-    // earlier and the attribute came back with a re-download); there is
-    // nothing to gain from a relaunch then, so skip it.
-    if scap::has_permission() {
-        log::info!("screen recording permission already granted; skipping relaunch");
-        return;
-    }
+    // Not consulting scap::has_permission() here on purpose: it calls
+    // CGPreflightScreenCaptureAccess, which reports true even for a
+    // quarantined identity that cannot actually capture. Reaching this point
+    // means this process carries a poisoned identity — either it was
+    // translocated, or we just stripped its quarantine flag — and only a
+    // relaunch gives tccd a clean one. The marker file above is the loop
+    // guard, not the permission probe.
 
     log::info!("relaunching through LaunchServices so tccd re-registers us without quarantine");
     let open = std::process::Command::new("open")
@@ -403,15 +413,13 @@ fn dequarantine_and_relaunch_if_needed(cache_dir: &std::path::Path) {
 }
 
 /// True when the bundle path is the read-only App Translocation sandbox macOS
-/// runs quarantined apps from.
+/// runs quarantined apps from. `current_exe()` may report either `/private/var`
+/// or its `/var` symlink, so both spellings count.
 #[cfg(target_os = "macos")]
 fn is_translocated(bundle: &std::path::Path) -> bool {
-    bundle
-        .to_string_lossy()
-        .contains("/private/var/folders/")
-        && bundle
-            .to_string_lossy()
-            .contains("AppTranslocation")
+    let s = bundle.to_string_lossy();
+    (s.contains("/private/var/folders/") || s.contains("/var/folders/"))
+        && s.contains("AppTranslocation")
 }
 
 #[cfg(target_os = "macos")]
